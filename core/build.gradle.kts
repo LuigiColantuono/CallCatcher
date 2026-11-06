@@ -33,8 +33,10 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
+    // Exposed as api: core's DB types (CallCatcherDatabase/RecordingDao) are part of its public
+    // surface, so consumers like :ui need RoomDatabase on their compile classpath.
+    api(libs.androidx.room.runtime)
+    api(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.datastore.preferences)

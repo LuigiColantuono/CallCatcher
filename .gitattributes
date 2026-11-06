@@ -1,0 +1,17 @@
+# Normalise line endings: let Git decide, commit LF.
+* text=auto
+
+# Shell scripts and Gradle files must stay LF even on Windows checkouts.
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows batch files stay CRLF.
+*.bat text eol=crlf
+
+# Treat these as binary so Git never touches their bytes.
+*.jar binary
+*.apk binary
+*.keystore binary
+*.png binary
+*.jpg binary
+*.webp binary

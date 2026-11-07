@@ -71,7 +71,7 @@ class RecordingStore(
                     durationMillis = result.durationMillis,
                     sizeBytes = size,
                     sampleRateHz = result.sampleRateHz,
-                    captureSource = result.source.name,
+                    captureSource = result.sourceLabel,
                     // Locale.US: a comma decimal separator would break the comma-joined list.
                     waveform = result.waveform.joinToString(",") { String.format(Locale.US, "%.3f", it) },
                     silenceRatio = result.silenceRatio,
@@ -80,8 +80,9 @@ class RecordingStore(
         }
 
         val silencePct = (result.silenceRatio * 100).toInt()
-        val summary = "${result.metadata.source.name} via ${result.source} @ ${result.sampleRateHz / 1000} kHz, " +
-            "${result.durationMillis / 1000} s, silence $silencePct%"
+        val summary = "${result.metadata.source.name} via ${result.sourceLabel} @ ${result.sampleRateHz / 1000} kHz, " +
+            "${result.durationMillis / 1000} s, silence $silencePct%" +
+            if (result.notes.isEmpty()) "" else " | skipped: ${result.notes.joinToString("; ")}"
         status.recordSaved(summary)
         Log.i(TAG, "Saved ${result.outputPath}: $summary")
     }

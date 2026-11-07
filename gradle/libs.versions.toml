@@ -12,6 +12,7 @@ coroutines = "1.9.0"
 datastore = "1.1.1"
 xposed = "82"
 dexkit = "2.0.3"
+hiddenapibypass = "6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +41,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 xposed-api = { group = "de.robv.android.xposed", name = "api", version.ref = "xposed" }
 dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenapibypass" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

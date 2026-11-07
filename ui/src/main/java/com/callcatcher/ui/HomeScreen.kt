@@ -1,49 +1,51 @@
 package com.callcatcher.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.callcatcher.ui.components.PlayerBar
-import com.callcatcher.ui.components.RecordingRow
-import com.callcatcher.ui.components.StatusPanel
+import com.callcatcher.core.capture.LiveRecording
+import com.callcatcher.ui.components.BottomDock
+import com.callcatcher.ui.components.DockAction
+import com.callcatcher.ui.components.EmptyLibrary
+import com.callcatcher.ui.components.LIVE_SLOTS
+import com.callcatcher.ui.components.LiveDeck
+import com.callcatcher.ui.components.PlaybackDeck
+import com.callcatcher.ui.components.RecordingList
+import com.callcatcher.ui.components.SearchField
+import com.callcatcher.ui.components.SegmentedFilter
+import com.callcatcher.ui.components.StatusCard
+import com.callcatcher.ui.components.TopBar
 import com.callcatcher.ui.model.RecordingUi
 import com.callcatcher.ui.model.SourceFilter
+import com.callcatcher.ui.theme.CC
+import com.callcatcher.ui.util.formatSize
+import com.callcatcher.ui.util.formatTotalDuration
 
-private val RecordingRed = Color(0xFFFF453A)
-
+/**
+ * The whole app in one window: top bar, optional setup card, a deck that appears while listening
+ * or recording, the filterable list, and the bottom dock. Nothing opens a second screen.
+ */
 @Composable
 fun HomeScreen(viewModel: LibraryViewModel) {
     val recordings by viewModel.recordings.collectAsState()
@@ -51,136 +53,135 @@ fun HomeScreen(viewModel: LibraryViewModel) {
     val query by viewModel.query.collectAsState()
     val playback by viewModel.playback.state.collectAsState()
     val status by viewModel.status.collectAsState()
-    val isRecording by viewModel.isRecording.collectAsState()
+    val stats by viewModel.stats.collectAsState()
+    val live by viewModel.live.collectAsState()
 
-    var pendingDelete by remember { mutableStateOf<RecordingUi?>(null) }
+    var statusOpen by rememberSaveable { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(status.loaded, status.ready) {
+        if (status.loaded && !status.ready) statusOpen = true
+    }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            val current = recordings.firstOrNull { it.path == playback.path }
-            if (current != null) {
-                PlayerBar(
-                    title = current.title,
-                    state = playback,
-                    onPlay = { viewModel.play(current.path) },
-                    onPause = { viewModel.pause() },
+    val selected = recordings.firstOrNull { it.path == playback.path }
+
+    // Keep the last value so the exit animation still has something to draw.
+    var lastLive by remember { mutableStateOf<LiveRecording?>(null) }
+    var lastSelected by remember { mutableStateOf<RecordingUi?>(null) }
+    live?.let { lastLive = it }
+    selected?.let { lastSelected = it }
+
+    val levels = remember { mutableStateListOf<Float>() }
+    LaunchedEffect(live != null) {
+        levels.clear()
+        if (live != null) {
+            viewModel.level.collect {
+                levels.add(it)
+                if (levels.size > LIVE_SLOTS) levels.removeAt(0)
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(CC.Canvas).systemBarsPadding()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopBar(
+                summary = summaryLine(stats.count, stats.totalDurationMillis, status.freeBytes),
+                ready = status.ready,
+                searchOpen = searchOpen,
+                onToggleSearch = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) viewModel.setQuery("")
+                },
+                onToggleStatus = { statusOpen = !statusOpen },
+            )
+
+            Reveal(visible = statusOpen) {
+                StatusCard(
+                    status = status,
+                    onClearError = viewModel::clearError,
+                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                 )
             }
-        },
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Header(isRecording = isRecording, onTestRecording = viewModel::startTestRecording)
 
-            StatusPanel(
-                status = status,
-                onClearError = viewModel::clearError,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            SearchField(query = query, onQueryChange = viewModel::setQuery)
-            FilterRow(selected = filter, onSelect = viewModel::setFilter)
-
-            if (recordings.isEmpty()) {
-                EmptyState()
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(recordings, key = { it.id }) { recording ->
-                        RecordingRow(
-                            recording = recording,
-                            isActive = recording.path == playback.path,
-                            playback = playback,
-                            onPlay = { viewModel.play(recording.path) },
-                            onPause = { viewModel.pause() },
-                            onSeek = viewModel::seekTo,
-                            onLongPress = { pendingDelete = recording },
-                        )
-                    }
+            Reveal(visible = live != null) {
+                lastLive?.let {
+                    LiveDeck(it, levels, modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
                 }
             }
-        }
-    }
 
-    pendingDelete?.let { target ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete recording?") },
-            text = { Text("${target.title} will be removed from the list and deleted from storage.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.delete(target)
-                    pendingDelete = null
-                }) { Text("Delete") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            },
-        )
-    }
-}
-
-@Composable
-private fun Header(isRecording: Boolean, onTestRecording: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = "CallCatcher", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.weight(1f))
-        if (isRecording) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(8.dp).background(RecordingRed, CircleShape))
-                Text("Recording", style = MaterialTheme.typography.labelMedium, color = RecordingRed)
+            Reveal(visible = live == null && selected != null) {
+                lastSelected?.let { rec ->
+                    PlaybackDeck(
+                        recording = rec,
+                        playback = playback,
+                        onSeek = viewModel::seekTo,
+                        onSkip = viewModel::skipBy,
+                        onCycleSpeed = viewModel::cycleSpeed,
+                        onDelete = { viewModel.delete(rec) },
+                        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                    )
+                }
             }
-        } else {
-            IconButton(onClick = onTestRecording) {
-                Icon(Icons.Filled.Mic, contentDescription = "5-second test recording")
-            }
-        }
-    }
-}
 
-@Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    TextField(
-        value = query,
-        onValueChange = onQueryChange,
-        singleLine = true,
-        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-        placeholder = { Text("Search name or number") },
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-        ),
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}
-
-@Composable
-private fun FilterRow(selected: SourceFilter, onSelect: (SourceFilter) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SourceFilter.entries.forEach { option ->
-            FilterChip(
-                selected = selected == option,
-                onClick = { onSelect(option) },
-                label = { Text(option.label) },
+            SegmentedFilter(
+                selected = filter,
+                onSelect = viewModel::setFilter,
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
+
+            Reveal(visible = searchOpen) {
+                SearchField(
+                    query = query,
+                    onQueryChange = viewModel::setQuery,
+                    modifier = Modifier.padding(horizontal = 16.dp).padding(top = 10.dp),
+                )
+            }
+
+            if (recordings.isEmpty()) {
+                EmptyLibrary(filtered = filter != SourceFilter.ALL || query.isNotBlank())
+            } else {
+                RecordingList(
+                    recordings = recordings,
+                    selectedPath = playback.path,
+                    onSelect = viewModel::select,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
+                )
+            }
         }
+
+        BottomDock(
+            action = when {
+                live != null -> DockAction.StopRecording
+                selected != null -> DockAction.Playback(playback.isPlaying)
+                else -> DockAction.StartTest
+            },
+            onPrimary = {
+                when {
+                    live != null -> viewModel.stopRecording()
+                    selected != null -> viewModel.togglePlayback()
+                    else -> viewModel.startTestRecording()
+                }
+            },
+            onClose = if (live == null && selected != null) viewModel::closePlayer else null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
 @Composable
-private fun EmptyState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            "No recordings yet",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun Reveal(visible: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) { content() }
+}
+
+private fun summaryLine(count: Int, totalMillis: Long, freeBytes: Long): String {
+    val free = if (freeBytes > 0) "${formatSize(freeBytes)} free" else null
+    val library = when (count) {
+        0 -> "No recordings"
+        1 -> "1 recording · ${formatTotalDuration(totalMillis)}"
+        else -> "$count recordings · ${formatTotalDuration(totalMillis)}"
     }
+    return listOfNotNull(library, free).joinToString(" · ")
 }

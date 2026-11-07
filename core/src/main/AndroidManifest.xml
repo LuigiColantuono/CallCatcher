@@ -14,11 +14,19 @@
       module/privapp-permissions-com.callcatcher.xml. Every privileged permission requested here
       must be in that file, or a device enforcing the allowlist can fail to boot.
         - CAPTURE_AUDIO_OUTPUT: read the VOICE_CALL stream (both sides of a carrier call).
+        - MODIFY_AUDIO_ROUTING / CAPTURE_VOICE_COMMUNICATION_OUTPUT: capture the audio WhatsApp
+          plays (the other party of a VoIP call) through a loop-back audio policy.
         - START_ACTIVITIES_FROM_BACKGROUND / START_FOREGROUND_SERVICES_FROM_BACKGROUND: start the
           microphone foreground service when WhatsApp signals a call while the app is in background.
     -->
     <uses-permission
         android:name="android.permission.CAPTURE_AUDIO_OUTPUT"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.MODIFY_AUDIO_ROUTING"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.CAPTURE_VOICE_COMMUNICATION_OUTPUT"
         tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.START_ACTIVITIES_FROM_BACKGROUND"

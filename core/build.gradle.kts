@@ -40,4 +40,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.datastore.preferences)
+
+    // Reflection access to the @SystemApi audio-policy classes used by PlaybackCapture.
+    implementation(libs.hiddenapibypass)
 }

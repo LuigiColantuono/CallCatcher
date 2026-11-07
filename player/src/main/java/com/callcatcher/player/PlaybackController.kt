@@ -16,6 +16,7 @@ data class PlaybackState(
     val isPlaying: Boolean = false,
     val positionMillis: Long = 0,
     val durationMillis: Long = 0,
+    val speed: Float = 1f,
     val error: String? = null,
 )
 
@@ -45,7 +46,7 @@ class PlaybackController(context: Context) {
         if (_state.value.path != path) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(path))))
             player.prepare()
-            _state.value = PlaybackState(path = path)
+            _state.value = PlaybackState(path = path, speed = _state.value.speed)
         } else if (player.playbackState == Player.STATE_ENDED) {
             player.seekTo(0)
         }
@@ -59,11 +60,16 @@ class PlaybackController(context: Context) {
         push()
     }
 
-    /** Unload the current item (e.g. before deleting its file). */
+    fun setSpeed(speed: Float) {
+        player.setPlaybackSpeed(speed)
+        _state.value = _state.value.copy(speed = speed)
+    }
+
+    /** Unload the current item (e.g. before deleting its file). Keeps the chosen speed. */
     fun stop() {
         player.stop()
         player.clearMediaItems()
-        _state.value = PlaybackState()
+        _state.value = PlaybackState(speed = _state.value.speed)
     }
 
     /** Call periodically while playing to advance the position readout. */

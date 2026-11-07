@@ -25,9 +25,20 @@ a **privileged system app** through a KernelSU/Magisk module.
 - **Phone:** `VOICE_CALL` → `VOICE_COMMUNICATION` → `MIC`. `VOICE_CALL` is confirmed on the target
   device (Redmi Note 12, BCR logs): both sides, 16 kHz mono. The network sets the quality ceiling,
   so Opus at 16 kHz / 32 kbps is transparent.
-- **WhatsApp:** same cascade, with a 2 s start window. A source that delivers only digital silence
-  in that window (e.g. `VOICE_CALL` during VoIP on many devices) is skipped automatically. Whether
-  `VOICE_CALL` carries WhatsApp audio on this device is exactly what the first tests will show.
+- **WhatsApp:** first test (MIC only, 48 kHz) showed why WAE sounds bad: the other party is not in
+  any microphone source, and `VOICE_COMMUNICATION` is silenced for other apps while WhatsApp uses
+  it. So the VoIP profile is:
+  1. `VOICE_CALL`, skipped automatically if digitally silent during the 1.5 s start window;
+  2. **two-leg**: your side from `MIC`, the other side from playback capture of
+     voice-communication audio (`PlaybackCapture`: loop-back audio policy, needs
+     `MODIFY_AUDIO_ROUTING` + `CAPTURE_VOICE_COMMUNICATION_OUTPUT`), each auto-levelled, mixed to mono;
+  3. `MIC` alone as the last resort.
+
+  The details line of a recording shows which one won (`MIC+PLAYBACK` is the target), and
+  "Last saved" in the setup card lists why earlier ones were skipped.
+
+Test with BCR and WAEnhancer's call recording **disabled**: they open the same audio sources at the
+same time.
 
 ## Install (test builds)
 
@@ -58,12 +69,13 @@ secret, CI warns and uses a throwaway key.
 
 ## Testing checklist
 
-- Mic button (header): 5 s recording appears under All; tap to play, tap the waveform to seek.
-- Phone call: the row's details line should read `VOICE_CALL · 16 kHz`.
-- WhatsApp call: the status panel shows "WhatsApp trigger: last received …" if the hook reached
-  the app; the details line shows which source won. Hook diagnostics are in Vector → Logs, lines
-  starting with `CallCatcher:`.
-- Long-press a row to delete it.
+- "Test recording · 5 s" (bottom dock): the recording appears under Today; tap it to open the
+  player deck, tap or drag the waveform to seek.
+- Phone call: the deck's details line should read `VOICE_CALL`.
+- WhatsApp call: the setup card (status pill, top right) shows "WhatsApp trigger: last …" if the
+  hook reached the app; the deck shows which strategy won. Hook diagnostics are in Vector → Logs,
+  lines starting with `CallCatcher:`.
+- Delete: trash button in the deck, tap twice.
 
 ## Modules
 
@@ -77,8 +89,8 @@ secret, CI warns and uses a throwaway key.
 
 ## Not done yet
 
-- Two-sided WhatsApp capture if `VOICE_CALL` turns out silent for VoIP here (uplink
-  `VOICE_COMMUNICATION` + downlink playback capture, mixed).
+- If playback capture is refused for WhatsApp's audio: capture its playback from inside the
+  WhatsApp process instead (hook on its audio output) and stream it to the app.
 - Settings screen (folder, naming template, format, whitelist/blacklist).
 - Writing to a user-visible folder (recordings are in `Android/data/com.callcatcher/files/Recordings`).
 

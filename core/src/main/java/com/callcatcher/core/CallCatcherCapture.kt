@@ -3,6 +3,7 @@ package com.callcatcher.core
 import android.content.Context
 import com.callcatcher.core.capture.CaptureConfig
 import com.callcatcher.core.capture.CaptureEngine
+import com.callcatcher.core.capture.PlaybackCapture
 import com.callcatcher.core.db.CallCatcherDatabase
 import com.callcatcher.core.storage.ContactResolver
 import com.callcatcher.core.storage.LibraryScanner
@@ -29,8 +30,12 @@ object CallCatcherCapture {
                     status = StatusStore(app),
                 )
                 val contacts = ContactResolver(app)
-                CaptureEngine(config = CaptureConfig(), sink = store, enrich = contacts::enrich)
-                    .also { engine = it }
+                CaptureEngine(
+                    config = CaptureConfig(),
+                    sink = store,
+                    enrich = contacts::enrich,
+                    playbackCapture = { sampleRate -> PlaybackCapture.open(app, sampleRate) },
+                ).also { engine = it }
             }
         }
     }

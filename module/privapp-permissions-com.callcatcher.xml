@@ -10,6 +10,9 @@
     <privapp-permissions package="com.callcatcher">
         <!-- Read the VOICE_CALL stream (both sides of a carrier call). -->
         <permission name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+        <!-- Capture the audio WhatsApp plays (other party) via a loop-back audio policy. -->
+        <permission name="android.permission.MODIFY_AUDIO_ROUTING" />
+        <permission name="android.permission.CAPTURE_VOICE_COMMUNICATION_OUTPUT" />
         <!-- Telecom binds the non-UI InCallService for every call. -->
         <permission name="android.permission.CONTROL_INCALL_EXPERIENCE" />
         <!-- Start the microphone foreground service when WhatsApp signals a call in background. -->

@@ -1,55 +1,47 @@
 package com.callcatcher.core
 
 import android.content.Context
-import com.callcatcher.core.capture.AudioSource
 import com.callcatcher.core.capture.CaptureConfig
 import com.callcatcher.core.capture.CaptureEngine
 import com.callcatcher.core.db.CallCatcherDatabase
+import com.callcatcher.core.storage.ContactResolver
 import com.callcatcher.core.storage.LibraryScanner
-import com.callcatcher.core.storage.OutputNaming
 import com.callcatcher.core.storage.RecordingStore
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
+import com.callcatcher.core.storage.StatusStore
 import java.io.File
 
 /**
- * One-call wiring of engine + store + DB, so every trigger ([capture-phone], [capture-wa], …)
- * shares the same configured pipeline instead of re-assembling it. A trigger obtains the
- * [AudioSource] and calls onStreamStart/onStreamEnd — nothing else.
+ * Process-wide wiring of engine + store + DB, so every host (InCallService, RecorderService) and
+ * the UI share one configured pipeline.
  */
 object CallCatcherCapture {
 
-    private val scope = CoroutineScope(SupervisorJob())
-
     @Volatile private var engine: CaptureEngine? = null
 
-    /** Lazily build the shared engine. [baseDir] defaults to the app's external files dir. */
-    fun engine(
-        context: Context,
-        baseDir: File = defaultBaseDir(context),
-        config: CaptureConfig = CaptureConfig(),
-        namingTemplate: String = OutputNaming.DEFAULT_TEMPLATE,
-    ): AudioSource {
-        return engine ?: synchronized(this) {
+    fun engine(context: Context): CaptureEngine {
+        engine?.let { return it }
+        return synchronized(this) {
             engine ?: run {
-                val dao = CallCatcherDatabase.get(context).recordingDao()
+                val app = context.applicationContext
                 val store = RecordingStore(
-                    baseDir = baseDir,
-                    dao = dao,
-                    scope = scope,
-                    naming = OutputNaming(namingTemplate),
+                    baseDir = defaultBaseDir(app),
+                    dao = CallCatcherDatabase.get(app).recordingDao(),
+                    status = StatusStore(app),
                 )
-                CaptureEngine(config = config, sink = store).also { engine = it }
+                val contacts = ContactResolver(app)
+                CaptureEngine(config = CaptureConfig(), sink = store, enrich = contacts::enrich)
+                    .also { engine = it }
             }
         }
     }
 
-    /** Prune dead DB rows. Call once on app/service startup. */
-    suspend fun reconcileLibrary(context: Context, baseDir: File = defaultBaseDir(context)): Int {
-        val dao = CallCatcherDatabase.get(context).recordingDao()
-        return LibraryScanner(baseDir, dao).reconcile()
+    /** Prune DB rows whose files are gone. Call on app start. */
+    suspend fun reconcileLibrary(context: Context): Int {
+        val app = context.applicationContext
+        return LibraryScanner(defaultBaseDir(app), CallCatcherDatabase.get(app).recordingDao()).reconcile()
     }
 
+    /** /sdcard/Android/data/com.callcatcher/files/Recordings — no storage permission needed. */
     fun defaultBaseDir(context: Context): File =
         File(context.getExternalFilesDir(null) ?: context.filesDir, "Recordings")
 }

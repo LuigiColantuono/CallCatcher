@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Privileged-permission allowlist for CallCatcher in /system/priv-app.
+
+  MUST list every privileged permission the APK requests (see the manifests of :core and
+  :capture-phone). On ROMs that enforce the allowlist, a privileged permission requested but
+  missing here can stop the system from booting. CI checks the APK against this file.
+-->
+<permissions>
+    <privapp-permissions package="com.callcatcher">
+        <!-- Read the VOICE_CALL stream (both sides of a carrier call). -->
+        <permission name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+        <!-- Telecom binds the non-UI InCallService for every call. -->
+        <permission name="android.permission.CONTROL_INCALL_EXPERIENCE" />
+        <!-- Start the microphone foreground service when WhatsApp signals a call in background. -->
+        <permission name="android.permission.START_ACTIVITIES_FROM_BACKGROUND" />
+        <permission name="android.permission.START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+    </privapp-permissions>
+</permissions>

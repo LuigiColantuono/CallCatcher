@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!--
+      Privileged (BCR model): lets Telecom bind this non-UI InCallService for every call without
+      the app being the default dialer. Allowlisted in module/privapp-permissions-com.callcatcher.xml.
+    -->
+    <uses-permission
+        android:name="android.permission.CONTROL_INCALL_EXPERIENCE"
+        tools:ignore="ProtectedPermissions" />
 
     <application>
-        <!--
-          Modelled on BCR: an InCallService observes call state without being the default dialer.
-          The user grants the companion-app / call-screening role so the OS binds this service for
-          every call, giving start/stop + direction + number.
-        -->
         <service
             android:name=".PhoneCallRecordingService"
             android:exported="true"
+            android:foregroundServiceType="microphone"
             android:permission="android.permission.BIND_INCALL_SERVICE">
+            <!-- Also report self-managed (VoIP) calls, e.g. WhatsApp if it registers with Telecom. -->
             <meta-data
-                android:name="android.telecom.IN_CALL_SERVICE_UI"
-                android:value="false" />
-            <meta-data
-                android:name="android.telecom.IN_CALL_SERVICE_RINGING"
-                android:value="false" />
+                android:name="android.telecom.INCLUDE_SELF_MANAGED_CALLS"
+                android:value="true" />
             <intent-filter>
                 <action android:name="android.telecom.InCallService" />
             </intent-filter>

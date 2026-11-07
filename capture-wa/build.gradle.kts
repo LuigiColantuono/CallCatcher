@@ -28,6 +28,6 @@ dependencies {
     // Xposed API is provided by the framework at runtime — never bundle it.
     compileOnly(libs.xposed.api)
 
-    // Deobfuscation of WhatsApp's stripped classes. Isolated behind WaSignatures.
+    // Fallback lookup of WhatsApp's call callback class. Used only inside WaClassFinder.
     implementation(libs.dexkit)
 }

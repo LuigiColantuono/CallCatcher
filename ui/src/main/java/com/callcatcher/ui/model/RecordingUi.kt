@@ -15,7 +15,11 @@ data class RecordingUi(
     val startedAtMillis: Long,
     val durationMillis: Long,
     val sizeBytes: Long,
+    val sampleRateHz: Int,
+    /** Which system audio source won the cascade, e.g. VOICE_CALL. Shown while testing. */
+    val captureSource: String,
     val waveform: FloatArray,
+    val silencePercent: Int,
     val lowQuality: Boolean,
 ) {
     override fun equals(other: Any?) = other is RecordingUi && other.id == id
@@ -27,17 +31,20 @@ fun RecordingEntity.toUi(): RecordingUi = RecordingUi(
     path = path,
     source = CallSource.fromName(source),
     direction = CallDirection.fromName(direction),
-    title = contactName?.takeIf { it.isNotBlank() } ?: address ?: "Unknown",
+    title = contactName?.takeIf { it.isNotBlank() } ?: address?.takeIf { it.isNotBlank() } ?: "Unknown",
     address = address,
     startedAtMillis = startedAtMillis,
     durationMillis = durationMillis,
     sizeBytes = sizeBytes,
+    sampleRateHz = sampleRateHz,
+    captureSource = captureSource,
     waveform = waveform.split(",").mapNotNull { it.toFloatOrNull() }.toFloatArray(),
+    silencePercent = (silenceRatio * 100).toInt(),
     // Mostly-silent files are the WAE failure mode; flag them so the user isn't surprised.
     lowQuality = silenceRatio > 0.85f,
 )
 
-/** The single list's filter. Tutte / Telefono / WhatsApp — one screen, not three. */
+/** The single list's filter: one screen, not one per source. */
 enum class SourceFilter(val label: String) {
     ALL("All"),
     PHONE("Phone"),

@@ -8,11 +8,11 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="CallCatcher WhatsApp call trigger" />
+            android:value="Detects WhatsApp calls for CallCatcher. Scope: WhatsApp + System Framework." />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
-        <!-- Only load into WhatsApp. -->
+        <!-- Recommended scope: WhatsApp (call detection) + System Framework (package visibility). -->
         <meta-data
             android:name="xposedscope"
             android:resource="@array/xposed_scope" />

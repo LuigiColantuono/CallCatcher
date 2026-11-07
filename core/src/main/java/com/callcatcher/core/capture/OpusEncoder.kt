@@ -4,18 +4,16 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
-import android.util.Log
+import android.os.SystemClock
 import java.io.FileDescriptor
-import java.nio.ByteBuffer
+import kotlin.math.min
 
 /**
- * Wraps a MediaCodec Opus encoder feeding a MediaMuxer Ogg container.
+ * MediaCodec Opus encoder feeding a MediaMuxer Ogg container (API 29+).
  *
- * We deliberately do not hand-write Ogg pages (BCR does, but it has reasons we don't): since
- * API 29 MediaMuxer can mux Opus into OGG, which is well-tested and keeps this class small.
- *
- * Usage: [start] once, [encode] PCM chunks as they arrive, [finish] exactly once. Not thread-safe;
- * the engine drives it from a single recording thread.
+ * [encode] never drops PCM: it keeps queueing until the whole chunk is in the codec, splitting it
+ * across input buffers when the chunk is larger than one buffer. Single-threaded by design: the
+ * engine drives it from the session thread only.
  */
 internal class OpusEncoder(
     private val fd: FileDescriptor,
@@ -27,88 +25,102 @@ internal class OpusEncoder(
     private lateinit var muxer: MediaMuxer
     private var trackIndex = -1
     private var muxerStarted = false
+    private var samplesWritten = 0L
     private val bufferInfo = MediaCodec.BufferInfo()
-    private var presentationUs = 0L
+
+    /** Frames queued so far; drives presentation timestamps. */
+    private var framesQueued = 0L
 
     fun start() {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, sampleRateHz, channelCount).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, bitrateBps)
             setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
         }
-        codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_OPUS).apply {
-            configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            start()
-        }
+        codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_OPUS)
+        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        codec.start()
         muxer = MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG)
     }
 
-    /** Feed one PCM buffer (16-bit LE). [bytesRead] may be less than [pcm] capacity. */
-    fun encode(pcm: ByteArray, bytesRead: Int) {
-        drainInput(pcm, bytesRead, endOfStream = false)
-        drainOutput(endOfStream = false)
+    /** Queue [length] bytes of 16-bit PCM. Blocks briefly if the codec is busy; never drops data. */
+    fun encode(pcm: ByteArray, length: Int) {
+        var offset = 0
+        while (offset < length) {
+            val index = codec.dequeueInputBuffer(TIMEOUT_US)
+            if (index >= 0) {
+                val input = codec.getInputBuffer(index) ?: error("Null input buffer $index")
+                input.clear()
+                // Keep whole frames so timestamps stay exact.
+                val frameBytes = 2 * channelCount
+                val room = input.remaining() - input.remaining() % frameBytes
+                val count = min(room, length - offset)
+                input.put(pcm, offset, count)
+                codec.queueInputBuffer(index, 0, count, ptsUs(), 0)
+                framesQueued += count / frameBytes
+                offset += count
+            }
+            drainOutput(endOfStream = false)
+        }
     }
 
+    /** Flush, finalise the container and release everything. Safe to call once. */
     fun finish() {
         try {
-            drainInput(ByteArray(0), 0, endOfStream = true)
+            val deadline = SystemClock.elapsedRealtime() + EOS_TIMEOUT_MS
+            while (SystemClock.elapsedRealtime() < deadline) {
+                val index = codec.dequeueInputBuffer(TIMEOUT_US)
+                if (index >= 0) {
+                    codec.queueInputBuffer(index, 0, 0, ptsUs(), MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                    break
+                }
+                drainOutput(endOfStream = false)
+            }
             drainOutput(endOfStream = true)
         } finally {
             runCatching { codec.stop() }
             runCatching { codec.release() }
-            if (muxerStarted) runCatching { muxer.stop() }
+            if (muxerStarted && samplesWritten > 0) runCatching { muxer.stop() }
             runCatching { muxer.release() }
         }
     }
 
-    private fun drainInput(pcm: ByteArray, bytesRead: Int, endOfStream: Boolean) {
-        val index = codec.dequeueInputBuffer(TIMEOUT_US)
-        if (index < 0) return
-        val input: ByteBuffer = codec.getInputBuffer(index) ?: return
-        input.clear()
-        if (bytesRead > 0) input.put(pcm, 0, bytesRead)
-
-        if (endOfStream) {
-            codec.queueInputBuffer(index, 0, 0, presentationUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-        } else {
-            codec.queueInputBuffer(index, 0, bytesRead, presentationUs, 0)
-            // 16-bit samples: bytes / 2 / channels = frames; advance PTS by their duration.
-            val frames = bytesRead / 2 / channelCount
-            presentationUs += frames * 1_000_000L / sampleRateHz
-        }
-    }
+    private fun ptsUs(): Long = framesQueued * 1_000_000L / sampleRateHz
 
     private fun drainOutput(endOfStream: Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + EOS_TIMEOUT_MS
         while (true) {
             val index = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)
             when {
                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    if (muxerStarted) error("Encoder format changed twice")
+                    check(!muxerStarted) { "Encoder output format changed twice" }
                     trackIndex = muxer.addTrack(codec.outputFormat)
                     muxer.start()
                     muxerStarted = true
                 }
                 index == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                    if (!endOfStream) return // wait for more input
-                    // on EOS keep polling until the flag arrives
+                    if (!endOfStream || SystemClock.elapsedRealtime() > deadline) return
                 }
                 index >= 0 -> {
-                    val encoded = codec.getOutputBuffer(index)
-                    if (encoded != null && bufferInfo.size > 0 && muxerStarted &&
-                        bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
-                    ) {
-                        encoded.position(bufferInfo.offset)
-                        encoded.limit(bufferInfo.offset + bufferInfo.size)
-                        muxer.writeSampleData(trackIndex, encoded, bufferInfo)
+                    val isConfig = bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+                    if (!isConfig && bufferInfo.size > 0 && muxerStarted) {
+                        val encoded = codec.getOutputBuffer(index)
+                        if (encoded != null) {
+                            encoded.position(bufferInfo.offset)
+                            encoded.limit(bufferInfo.offset + bufferInfo.size)
+                            muxer.writeSampleData(trackIndex, encoded, bufferInfo)
+                            samplesWritten++
+                        }
                     }
                     codec.releaseOutputBuffer(index, false)
                     if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
                 }
+                else -> Unit // deprecated INFO_OUTPUT_BUFFERS_CHANGED: nothing to do
             }
         }
     }
 
     companion object {
-        private const val TAG = "OpusEncoder"
         private const val TIMEOUT_US = 10_000L
+        private const val EOS_TIMEOUT_MS = 2_000L
     }
 }

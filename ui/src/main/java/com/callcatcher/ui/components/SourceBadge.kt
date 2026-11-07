@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -16,12 +17,13 @@ import androidx.compose.ui.unit.dp
 import com.callcatcher.core.model.CallDirection
 import com.callcatcher.core.model.CallSource
 
-/** Source icon — bespoke vector glyphs, never emoji (brief). */
+/** Source glyph: vector icons, never emoji. */
 @Composable
 fun SourceIcon(source: CallSource, modifier: Modifier = Modifier) {
     val icon: ImageVector = when (source) {
         CallSource.PHONE -> Icons.Filled.Call
         CallSource.WHATSAPP -> Icons.Filled.Chat
+        CallSource.TEST -> Icons.Filled.Mic
         CallSource.UNKNOWN -> Icons.Filled.QuestionMark
     }
     Icon(

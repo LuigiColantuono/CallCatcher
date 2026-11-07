@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- "android" = System Framework, needed so WhatsApp can reach the app (package visibility). -->
     <string-array name="xposed_scope">
         <item>com.whatsapp</item>
         <item>com.whatsapp.w4b</item>
+        <item>android</item>
     </string-array>
 </resources>

@@ -1,12 +1,17 @@
 package com.callcatcher.core.model
 
+import android.os.Bundle
+
 /**
- * Where a recording originated. The capture engine is deliberately agnostic to this;
- * it is carried only for storage layout, naming and UI badges.
+ * Where a recording originated. The capture engine only uses this to pick a capture profile;
+ * storage uses it for folders and the UI for badges.
  */
 enum class CallSource {
     PHONE,
     WHATSAPP,
+
+    /** Manual test recording from the app (microphone only). */
+    TEST,
     UNKNOWN;
 
     companion object {
@@ -21,12 +26,12 @@ enum class CallDirection {
     OUTGOING,
     UNKNOWN;
 
-    /** Short token used in filenames, matching BCR's convention. */
+    /** Short token used in filenames. */
     val token: String
         get() = when (this) {
             INCOMING -> "in"
             OUTGOING -> "out"
-            UNKNOWN -> "unknown"
+            UNKNOWN -> "call"
         }
 
     companion object {
@@ -36,19 +41,48 @@ enum class CallDirection {
 }
 
 /**
- * Everything a trigger knows about a call at the moment capture starts.
- * A trigger ([com.callcatcher.core.capture.AudioSource] caller) fills this in and hands it
- * to the engine; the engine never inspects it beyond passing it through to storage.
+ * Everything a trigger knows about a call when capture starts. Triggers fill this in; the engine
+ * passes it through to storage untouched (apart from contact-name enrichment).
  */
 data class CallMetadata(
     val source: CallSource,
     val direction: CallDirection = CallDirection.UNKNOWN,
-    /** Raw phone number, JID or any source-specific identifier. May be null if withheld. */
+    /** Phone number, WhatsApp JID or other identifier. Null if withheld. */
     val address: String? = null,
-    /** Human-readable contact name if the trigger could resolve one. */
+    /** Human-readable contact name, if known. */
     val contactName: String? = null,
-    /** Call start, epoch millis. Defaults to now. */
+    /** Call start, epoch millis. */
     val startedAtMillis: Long = System.currentTimeMillis(),
-    /** SIM slot for phone calls, when known. */
     val simSlot: Int? = null,
-)
+) {
+    /** Serialises for IPC (WhatsApp hook → app) and service intents. */
+    fun toBundle(): Bundle = Bundle().apply {
+        putString(KEY_SOURCE, source.name)
+        putString(KEY_DIRECTION, direction.name)
+        putString(KEY_ADDRESS, address)
+        putString(KEY_CONTACT, contactName)
+        putLong(KEY_STARTED_AT, startedAtMillis)
+        simSlot?.let { putInt(KEY_SIM_SLOT, it) }
+    }
+
+    companion object {
+        private const val KEY_SOURCE = "source"
+        private const val KEY_DIRECTION = "direction"
+        private const val KEY_ADDRESS = "address"
+        private const val KEY_CONTACT = "contactName"
+        private const val KEY_STARTED_AT = "startedAt"
+        private const val KEY_SIM_SLOT = "simSlot"
+
+        fun fromBundle(bundle: Bundle?): CallMetadata {
+            if (bundle == null) return CallMetadata(source = CallSource.UNKNOWN)
+            return CallMetadata(
+                source = CallSource.fromName(bundle.getString(KEY_SOURCE)),
+                direction = CallDirection.fromName(bundle.getString(KEY_DIRECTION)),
+                address = bundle.getString(KEY_ADDRESS),
+                contactName = bundle.getString(KEY_CONTACT),
+                startedAtMillis = bundle.getLong(KEY_STARTED_AT, System.currentTimeMillis()),
+                simSlot = if (bundle.containsKey(KEY_SIM_SLOT)) bundle.getInt(KEY_SIM_SLOT) else null,
+            )
+        }
+    }
+}

@@ -4,6 +4,8 @@
 # Shell scripts and Gradle files must stay LF even on Windows checkouts.
 *.sh text eol=lf
 gradlew text eol=lf
+# Module installer scripts run on Android's shell.
+module/** text eol=lf
 
 # Windows batch files stay CRLF.
 *.bat text eol=crlf

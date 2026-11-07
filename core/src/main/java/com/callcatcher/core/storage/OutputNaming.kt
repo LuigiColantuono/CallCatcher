@@ -46,6 +46,7 @@ class OutputNaming(
         val top = when (metadata.source) {
             CallSource.PHONE -> "Phone"
             CallSource.WHATSAPP -> "WhatsApp"
+            CallSource.TEST -> "Test"
             CallSource.UNKNOWN -> "Other"
         }
         return "$top/$year/$month"

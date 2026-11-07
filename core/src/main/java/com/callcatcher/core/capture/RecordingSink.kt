@@ -4,26 +4,26 @@ import com.callcatcher.core.model.CallMetadata
 import java.io.FileDescriptor
 
 /**
- * Supplies the engine with a place to write, and receives the finished result.
- * Keeps [CaptureEngine] free of storage/DB knowledge so the same engine serves every trigger.
+ * Supplies the engine with a place to write and receives the finished result, keeping
+ * [CaptureEngine] free of storage and DB knowledge.
  */
 interface RecordingSink {
 
-    /** An open output destination for one recording. */
+    /** An open, seekable, read-write output (MediaMuxer requires both). */
     class Target(
         val fd: FileDescriptor,
-        /** Logical path for the DB/UI (the engine does not resolve paths itself). */
+        /** Absolute path, used by the DB and the player. */
         val path: String,
-        /** Called by the engine to release the underlying stream after muxing completes. */
+        /** Releases the underlying file. Idempotent. */
         val close: () -> Unit,
     )
 
-    /** Create and open the output file for [metadata]. Return null to abort capture. */
+    /** Create the output file for [metadata]. Null aborts the capture. */
     fun open(metadata: CallMetadata): Target?
 
-    /** The recording finished and the file is closed. Persist it. */
+    /** The file is closed. Persist it. Called on the session thread. */
     fun onCompleted(result: CaptureResult)
 
-    /** Capture failed or produced nothing usable. [target] may be null if opening failed. */
+    /** Capture failed. [target] (already closed) should be deleted if non-null. */
     fun onFailed(metadata: CallMetadata, target: Target?, reason: String)
 }

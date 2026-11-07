@@ -6,39 +6,41 @@ import com.callcatcher.core.capture.RecordingSink
 import com.callcatcher.core.db.RecordingDao
 import com.callcatcher.core.db.RecordingEntity
 import com.callcatcher.core.model.CallMetadata
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
-import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Default [RecordingSink]: writes OGG/Opus files into source-partitioned folders under [baseDir]
- * and records each one in Room. Physical separation by source, logical union in the DB (brief).
+ * Default [RecordingSink]: Ogg/Opus files in source-partitioned folders under [baseDir], one Room
+ * row per file. Physical separation by source, logical union in the DB.
  *
- * [baseDir] is the app's own storage by default (no root needed to write). Pointing it at a
- * user-visible folder is where the privileged bridge would come in; the engine is unaffected.
+ * DB writes are synchronous on the session thread on purpose: the hosting service leaves the
+ * foreground right after, and the process may then be reclaimed before an async insert lands.
  */
 class RecordingStore(
     private val baseDir: File,
     private val dao: RecordingDao,
-    private val scope: CoroutineScope,
+    private val status: StatusStore,
     private val naming: OutputNaming = OutputNaming(),
     private val extension: String = "oga",
 ) : RecordingSink {
 
-    private val openStreams = HashMap<String, FileOutputStream>()
+    private val openFiles = ConcurrentHashMap<String, RandomAccessFile>()
 
     override fun open(metadata: CallMetadata): RecordingSink.Target? {
         return try {
-            val dir = File(baseDir, naming.relativeDir(metadata)).apply { mkdirs() }
-            val file = File(dir, naming.fileName(metadata, extension))
-            val stream = FileOutputStream(file)
-            openStreams[file.absolutePath] = stream
+            val dir = File(baseDir, naming.relativeDir(metadata))
+            if (!dir.isDirectory && !dir.mkdirs()) error("Cannot create $dir")
+            val file = uniqueFile(dir, naming.fileName(metadata, extension))
+            // MediaMuxer needs a seekable, read-write descriptor.
+            val raf = RandomAccessFile(file, "rw").apply { setLength(0) }
+            openFiles[file.absolutePath] = raf
             RecordingSink.Target(
-                fd = stream.fd,
+                fd = raf.fd,
                 path = file.absolutePath,
-                close = { closeStream(file.absolutePath) },
+                close = { openFiles.remove(file.absolutePath)?.let { runCatching { it.close() } } },
             )
         } catch (t: Throwable) {
             Log.e(TAG, "Failed to open output", t)
@@ -50,13 +52,14 @@ class RecordingStore(
         val file = File(result.outputPath)
         val size = file.length()
 
-        if (size <= EMPTY_FILE_BYTES) {
-            Log.w(TAG, "Discarding empty recording: ${result.outputPath}")
+        if (size <= EMPTY_FILE_BYTES || result.durationMillis < MIN_DURATION_MS) {
+            Log.w(TAG, "Discarding empty recording (${size} B, ${result.durationMillis} ms)")
             file.delete()
+            status.recordError("Recording discarded: too short (${result.durationMillis} ms)")
             return
         }
 
-        scope.launch(Dispatchers.IO) {
+        runBlocking {
             dao.upsert(
                 RecordingEntity(
                     path = result.outputPath,
@@ -69,26 +72,45 @@ class RecordingStore(
                     sizeBytes = size,
                     sampleRateHz = result.sampleRateHz,
                     captureSource = result.source.name,
-                    waveform = result.waveform.joinToString(",") { "%.3f".format(it) },
+                    // Locale.US: a comma decimal separator would break the comma-joined list.
+                    waveform = result.waveform.joinToString(",") { String.format(Locale.US, "%.3f", it) },
                     silenceRatio = result.silenceRatio,
                 )
             )
-            Log.i(TAG, "Saved ${result.outputPath} (${size} bytes, ${result.durationMillis}ms, " +
-                "source=${result.source}, silence=${"%.0f".format(result.silenceRatio * 100)}%)")
         }
+
+        val silencePct = (result.silenceRatio * 100).toInt()
+        val summary = "${result.metadata.source.name} via ${result.source} @ ${result.sampleRateHz / 1000} kHz, " +
+            "${result.durationMillis / 1000} s, silence $silencePct%"
+        status.recordSaved(summary)
+        Log.i(TAG, "Saved ${result.outputPath}: $summary")
     }
 
     override fun onFailed(metadata: CallMetadata, target: RecordingSink.Target?, reason: String) {
         Log.e(TAG, "Capture failed: $reason")
-        target?.let { File(it.path).delete() }
+        target?.let {
+            it.close()
+            File(it.path).delete()
+        }
+        status.recordError(reason)
     }
 
-    private fun closeStream(path: String) {
-        openStreams.remove(path)?.let { runCatching { it.flush(); it.close() } }
+    private fun uniqueFile(dir: File, name: String): File {
+        var candidate = File(dir, name)
+        if (!candidate.exists()) return candidate
+        val stem = name.substringBeforeLast('.')
+        val ext = name.substringAfterLast('.', "")
+        var n = 1
+        while (candidate.exists()) {
+            candidate = File(dir, "${stem}_$n.$ext")
+            n++
+        }
+        return candidate
     }
 
     companion object {
         private const val TAG = "RecordingStore"
         private const val EMPTY_FILE_BYTES = 1024L
+        private const val MIN_DURATION_MS = 1_000L
     }
 }

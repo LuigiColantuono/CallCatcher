@@ -3,6 +3,7 @@ package com.callcatcher.player
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,11 +16,13 @@ data class PlaybackState(
     val isPlaying: Boolean = false,
     val positionMillis: Long = 0,
     val durationMillis: Long = 0,
+    val error: String? = null,
 )
 
 /**
  * Thin wrapper over ExoPlayer. The UI observes [state] and calls play/pause/seek; it never touches
- * ExoPlayer directly. No capture logic here — this module only reads files and plays them (brief).
+ * ExoPlayer directly. No capture logic here: this module only reads files and plays them.
+ * Must be used from the main thread (ExoPlayer's application looper).
  */
 class PlaybackController(context: Context) {
 
@@ -31,15 +34,20 @@ class PlaybackController(context: Context) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) = push()
             override fun onPlaybackStateChanged(playbackState: Int) = push()
+            override fun onPlayerError(error: PlaybackException) {
+                _state.value = _state.value.copy(isPlaying = false, error = error.errorCodeName)
+            }
         })
     }
 
-    /** Load (if needed) and play the file at [path]. */
+    /** Load (if needed) and play [path]; restarts from the top if it had finished. */
     fun play(path: String) {
         if (_state.value.path != path) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(path))))
             player.prepare()
             _state.value = PlaybackState(path = path)
+        } else if (player.playbackState == Player.STATE_ENDED) {
+            player.seekTo(0)
         }
         player.play()
     }
@@ -47,11 +55,18 @@ class PlaybackController(context: Context) {
     fun pause() = player.pause()
 
     fun seekTo(positionMillis: Long) {
-        player.seekTo(positionMillis)
+        player.seekTo(positionMillis.coerceAtLeast(0))
         push()
     }
 
-    /** Call periodically (e.g. every 200ms while playing) to advance the position readout. */
+    /** Unload the current item (e.g. before deleting its file). */
+    fun stop() {
+        player.stop()
+        player.clearMediaItems()
+        _state.value = PlaybackState()
+    }
+
+    /** Call periodically while playing to advance the position readout. */
     fun tick() = push()
 
     fun release() = player.release()

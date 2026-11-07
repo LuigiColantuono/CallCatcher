@@ -1,6 +1,7 @@
 package com.callcatcher.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,11 +21,13 @@ import com.callcatcher.player.PlaybackState
 import com.callcatcher.ui.model.RecordingUi
 import com.callcatcher.ui.util.formatDateTime
 import com.callcatcher.ui.util.formatDuration
+import com.callcatcher.ui.util.formatSize
 
 /**
- * One row in the single unified list. Shows source icon, direction, title, time, duration and —
- * when active — the waveform with playback progress. Context-aware per the brief, in one surface.
+ * One row of the unified list. Tap plays/pauses; long-press asks to delete. The active row expands
+ * with a seekable waveform and the capture details (source, rate, size, silence) used for testing.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecordingRow(
     recording: RecordingUi,
@@ -33,11 +36,15 @@ fun RecordingRow(
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onSeek: (Long) -> Unit,
+    onLongPress: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { if (isActive && playback.isPlaying) onPause() else onPlay() }
+            .combinedClickable(
+                onClick = { if (isActive && playback.isPlaying) onPause() else onPlay() },
+                onLongClick = onLongPress,
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -49,7 +56,7 @@ fun RecordingRow(
             SourceIcon(recording.source)
             DirectionIcon(recording.direction)
 
-            Column(modifier = Modifier.padding(end = 8.dp).weight(1f)) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
                     text = recording.title,
                     style = MaterialTheme.typography.bodyLarge,
@@ -66,7 +73,7 @@ fun RecordingRow(
             if (recording.lowQuality) {
                 Icon(
                     Icons.Filled.WarningAmber,
-                    contentDescription = "Low quality / mostly silent",
+                    contentDescription = "Mostly silent",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -79,10 +86,20 @@ fun RecordingRow(
         }
 
         if (isActive) {
-            val progress = if (playback.durationMillis > 0) {
-                playback.positionMillis.toFloat() / playback.durationMillis
-            } else 0f
-            Waveform(peaks = recording.waveform, progress = progress)
+            val duration = if (playback.durationMillis > 0) playback.durationMillis else recording.durationMillis
+            val progress = if (duration > 0) playback.positionMillis.toFloat() / duration else 0f
+            Waveform(
+                peaks = recording.waveform,
+                progress = progress,
+                onSeek = { fraction -> onSeek((fraction * duration).toLong()) },
+            )
+            Text(
+                text = "${recording.captureSource} · ${recording.sampleRateHz / 1000} kHz · " +
+                    "${formatSize(recording.sizeBytes)} · silence ${recording.silencePercent}%" +
+                    (playback.error?.let { " · playback error: $it" } ?: ""),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

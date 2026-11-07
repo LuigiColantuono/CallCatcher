@@ -40,6 +40,14 @@ object PlaybackCapture {
 
     private const val TAG = "PlaybackCapture"
 
+    /**
+     * Android caps privileged (voice-communication) playback capture at 16 kHz, mono, 16-bit, and
+     * rejects the mix otherwise ("Privileged audio capture sample rate … can not be over 16000").
+     * WhatsApp's voice is wideband anyway, so nothing is lost; the uplink leg is opened at the same
+     * rate so the two can be mixed sample for sample.
+     */
+    const val MAX_SAMPLE_RATE_HZ = 16_000
+
     private const val RULE_MATCH_ATTRIBUTE_USAGE = 0x1
     private const val ROUTE_FLAG_RENDER = 0x1
     private const val ROUTE_FLAG_LOOP_BACK = 0x2

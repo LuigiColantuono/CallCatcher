@@ -128,7 +128,9 @@ class CaptureEngine(
         }
 
         private fun runStrategy(metadata: CallMetadata, strategy: CaptureStrategy, isLast: Boolean): Outcome {
-            val uplink = AudioRecordOpener.open(strategy.uplink, config.channelCount) ?: run {
+            // Two-leg: both legs at the playback-capture limit, so they mix sample for sample.
+            val rate = if (strategy is CaptureStrategy.TwoLeg) PlaybackCapture.MAX_SAMPLE_RATE_HZ else null
+            val uplink = AudioRecordOpener.open(strategy.uplink, config.channelCount, rate) ?: run {
                 notes += "${strategy.label}: ${strategy.uplink} unavailable"
                 return Outcome.SKIPPED
             }

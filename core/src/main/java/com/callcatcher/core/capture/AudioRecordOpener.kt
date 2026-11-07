@@ -25,10 +25,11 @@ internal object AudioRecordOpener {
 
     private const val TAG = "AudioRecordOpener"
 
+    /** [sampleRateHz] overrides the source's native rate, e.g. to match a playback-capture leg. */
     @SuppressLint("MissingPermission")
-    fun open(source: CaptureSource, channelCount: Int): OpenedRecord? {
+    fun open(source: CaptureSource, channelCount: Int, sampleRateHz: Int? = null): OpenedRecord? {
         val channelMask = if (channelCount == 1) AudioFormat.CHANNEL_IN_MONO else AudioFormat.CHANNEL_IN_STEREO
-        val sampleRate = nativeRateFor(source)
+        val sampleRate = sampleRateHz ?: nativeRateFor(source)
 
         val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         if (minBuffer <= 0) {

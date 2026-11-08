@@ -1,7 +1,14 @@
-# CallCatcher
+# <img width="auto" height="50" alt="CCLogo2" src="https://github.com/user-attachments/assets/e010a012-d54e-4b16-98d6-ea8e0cf15e8c" /> CallCatcher
 
-Xposed suite + integrated player for recording, organizing and playing phone and WhatsApp calls.
-Total-black single-window Android app, root-assisted capture, Opus encoding.
+Xposed module/apk for recording, organizing and playing phone and WhatsApp calls.
+
+## What motivated me to create CC:
+There are already excellent tools like BCR and WAE, but having to configure a folder for saving files, dealing with a file manager, or running into SAF (Storage Access Framework) restrictions when trying to save files to other apps can become quite annoying.
+So, I created a single app that:
+- Requires no configuration (other than installing the module and APK, and granting the necessary permissions via Vector/LSPosed)
+- Automatically categorizes recordings by type and color
+- Includes a built-in player
+- Has no notification system (it’s unnecessary)
 
 ## How it works
 

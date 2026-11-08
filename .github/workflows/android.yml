@@ -103,15 +103,16 @@ jobs:
           mkdir -p "$STAGE/system/priv-app/com.callcatcher" "$STAGE/system/etc/permissions"
           cp "$APK" "$STAGE/system/priv-app/com.callcatcher/com.callcatcher.apk"
           cp module/privapp-permissions-com.callcatcher.xml "$STAGE/system/etc/permissions/"
-          cp module/customize.sh "$STAGE/"
+          cp module/customize.sh module/banner.png "$STAGE/"
           cp -r module/META-INF "$STAGE/"
           cat > "$STAGE/module.prop" <<EOF
           id=callcatcher
           name=CallCatcher
           version=v${VERSION_NAME}
           versionCode=${VERSION_CODE}
-          author=CallCatcher
-          description=Installs CallCatcher as a privileged system app (call audio + call state).
+          author=Luigi Colantuono
+          description=Phone & WhatsApp call recorder with a built-in player. Installs CallCatcher as a privileged system app.
+          banner=banner.png
           EOF
           sed -i 's/^[[:space:]]*//' "$STAGE/module.prop"
           (cd "$STAGE" && zip -r9 "../dist/CallCatcher-module-${VERSION_NAME}-${SHORT_SHA}.zip" .)

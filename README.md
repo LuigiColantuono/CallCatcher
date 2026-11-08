@@ -10,6 +10,11 @@ So, I created a single app that:
 - Includes a built-in player
 - Has no notification system (it’s unnecessary)
 
+## Preview
+Note: Note: The display of "Whatsapp Contact" is intentional and serves only as a preview; the CC field displays the name correctly.
+<img width="auto" height="400" alt="image" src="https://github.com/user-attachments/assets/2e552d0a-ec80-49c9-9cc1-5fece4496366" />
+
+
 ## How it works
 
 One shared capture engine (`AudioRecord` → MediaCodec Opus → Ogg) runs in the CallCatcher app
@@ -95,12 +100,6 @@ secret, CI warns and uses a throwaway key.
 | `:player` | Media3/ExoPlayer playback wrapper. |
 | `:ui` | Total-black app: one filterable list, status panel, player. |
 
-## Not done yet
-
-- If playback capture is refused for WhatsApp's audio: capture its playback from inside the
-  WhatsApp process instead (hook on its audio output) and stream it to the app.
-- Settings screen (folder, naming template, format, whitelist/blacklist).
-- Writing to a user-visible folder (recordings are in `Android/data/com.callcatcher/files/Recordings`).
 
 ## Legal
 

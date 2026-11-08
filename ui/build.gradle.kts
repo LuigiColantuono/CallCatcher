@@ -6,6 +6,8 @@ plugins {
 
 // CI builds get an increasing versionCode so each APK can update the previous one in place.
 val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+val releaseTag: String? = System.getenv("GITHUB_REF_NAME")
+    ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
 
 // Stable signing key (not committed; CI restores it from the DEV_KEYSTORE_B64 secret). Without it
 // the build falls back to a throwaway debug key, and such an APK can't update an installed one.
@@ -20,7 +22,8 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = ciRunNumber ?: 1
-        versionName = "0.2.0" + (ciRunNumber?.let { "-ci$it" } ?: "-dev")
+        // Release builds (tag "v1.0.0") take the tag as version; other CI builds are "0.2.0-ci<run>".
+        versionName = releaseTag?.removePrefix("v") ?: ("0.2.0" + (ciRunNumber?.let { "-ci$it" } ?: "-dev"))
     }
 
     signingConfigs {

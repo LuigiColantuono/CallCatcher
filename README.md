@@ -61,6 +61,13 @@ CI (`.github/workflows/android.yml`) builds on every push and uploads one artifa
 - `CallCatcher-module-<version>.zip`: KernelSU/Magisk module that installs that APK in
   `/system/priv-app` with its permission allowlist.
 
+Requirement: the root solution must be able to mount module files into `/system`.
+
+- **Magisk**: built in, nothing to add.
+- **KernelSU**: recent versions no longer mount module files themselves; install a **metamodule**
+  first (as for BCR). Magic Mount-rs is confirmed working on the reference device; others may work
+  depending on the device. After reboot, the metamodule should list CallCatcher as mounted.
+
 First install:
 
 1. Uninstall any CallCatcher installed as a normal app with a different signing key.

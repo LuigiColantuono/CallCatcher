@@ -101,6 +101,10 @@ secret, CI warns and uses a throwaway key.
 | `:player` | Media3/ExoPlayer playback wrapper. |
 | `:ui` | Total-black app: one filterable list, status panel, player. |
 
+## License
+
+CallCatcher is free software, licensed under the [GNU General Public License v3.0](LICENSE).
+You can redistribute and modify it under those terms; it comes with no warranty.
 
 ## Legal
 

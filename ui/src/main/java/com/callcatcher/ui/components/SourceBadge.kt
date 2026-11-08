@@ -39,7 +39,7 @@ fun CallSource.tint(): Color = when (this) {
 fun CallSource.label(): String = when (this) {
     CallSource.PHONE -> "Phone"
     CallSource.WHATSAPP -> "WhatsApp"
-    CallSource.TEST -> "Test"
+    CallSource.TEST -> "Recording"
     CallSource.UNKNOWN -> "Call"
 }
 

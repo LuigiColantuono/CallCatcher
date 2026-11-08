@@ -19,8 +19,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
@@ -158,66 +156,42 @@ fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifi
     }
 }
 
-/** What the big bottom control does right now. */
-sealed interface DockAction {
-    data object StartTest : DockAction
-    data object StopRecording : DockAction
-    data class Playback(val isPlaying: Boolean) : DockAction
-}
-
 /**
- * Bottom controls over a fade: a round secondary button (close the player) and the main pill,
- * which plays/pauses, stops a recording, or starts a 5 s test recording.
+ * Bottom record control over a fade: starts a microphone recording, or stops whatever is being
+ * recorded (call or memo). Playback controls live in the player deck.
  */
 @Composable
-fun BottomDock(action: DockAction, onPrimary: () -> Unit, onClose: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun BottomDock(recording: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(Brush.verticalGradient(listOf(Color.Transparent, CC.Canvas, CC.Canvas)))
             .padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (onClose != null) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(CC.SurfaceRaised)
-                        .border(1.dp, CC.Hairline, CircleShape)
-                        .clickable(onClick = onClose),
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close player", tint = CC.TextPrimary)
-                }
-            }
-            val (icon, label, tint) = when (action) {
-                DockAction.StartTest -> Triple(Icons.Filled.Mic, "Test recording · 5 s", CC.Record)
-                DockAction.StopRecording -> Triple(Icons.Filled.Stop, "Stop recording", CC.Record)
-                is DockAction.Playback ->
-                    if (action.isPlaying) Triple(Icons.Filled.Pause, "Pause", CC.Accent)
-                    else Triple(Icons.Filled.PlayArrow, "Play", CC.Accent)
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(CC.SurfaceRaised)
-                    .border(1.dp, CC.Hairline, RoundedCornerShape(50))
-                    .clickable(onClick = onPrimary),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(50))
+                .background(CC.SurfaceRaised)
+                .border(1.dp, CC.Hairline, RoundedCornerShape(50))
+                .clickable(onClick = onClick),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(34.dp).clip(CircleShape).background(CC.Record.copy(alpha = 0.16f)),
             ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(34.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
-                ) {
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(label, style = MaterialTheme.typography.labelLarge, color = CC.TextPrimary)
+                Icon(
+                    if (recording) Icons.Filled.Stop else Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = CC.Record,
+                    modifier = Modifier.size(20.dp),
+                )
             }
+            Spacer(Modifier.width(12.dp))
+            Text(if (recording) "Stop" else "Recording", style = MaterialTheme.typography.labelLarge, color = CC.TextPrimary)
         }
     }
 }

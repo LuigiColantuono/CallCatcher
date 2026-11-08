@@ -53,7 +53,7 @@ object RecordingNotifications {
         val what = when (metadata.source) {
             CallSource.PHONE -> "Phone call"
             CallSource.WHATSAPP -> "WhatsApp call"
-            CallSource.TEST -> "Test recording"
+            CallSource.TEST -> "Voice recording"
             CallSource.UNKNOWN -> "Call"
         }
         val openApp = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {

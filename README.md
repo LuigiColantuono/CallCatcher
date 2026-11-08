@@ -20,7 +20,7 @@ process. Triggers only say *when* a call starts and ends:
 | Phone calls | `PhoneCallRecordingService` (InCallService) in the app | Telecom call state |
 | WhatsApp calls (Telecom) | same InCallService, if WhatsApp registers its calls with Telecom | Telecom call state |
 | WhatsApp calls (hook) | `:capture-wa` inside WhatsApp, via LSPosed/Vector | `soundPortCreated` / `fieldstatsReady`, sent to the app's `TriggerProvider` |
-| Test | 5 s microphone recording from the app header | button |
+| Recording | microphone recording (voice memo) from the bottom dock, until Stop | button |
 
 Capture needs `CAPTURE_AUDIO_OUTPUT` and call-state access needs `CONTROL_INCALL_EXPERIENCE`. Both
 are **privileged permissions**: `pm grant` cannot grant them, which is why WAEnhancer (recording from
@@ -76,12 +76,13 @@ secret, CI warns and uses a throwaway key.
 
 ## Testing checklist
 
-- "Test recording · 5 s" (bottom dock): the recording appears under Today; tap it to open the
-  player deck, tap or drag the waveform to seek.
+- "Recording" (bottom dock), then "Stop": the recording appears under Today; tap it to open the
+  player deck (play, speed, share, delete, close), tap or drag the waveform to seek.
 - Phone call: the deck's details line should read `VOICE_CALL`.
 - WhatsApp call: the setup card (status pill, top right) shows "WhatsApp trigger: last …" if the
   hook reached the app; the deck shows which strategy won. Hook diagnostics are in Vector → Logs,
   lines starting with `CallCatcher:`.
+- Share: share button in the deck opens the system share sheet (e.g. send to a WhatsApp chat).
 - Delete: trash button in the deck, tap twice.
 
 ## Modules

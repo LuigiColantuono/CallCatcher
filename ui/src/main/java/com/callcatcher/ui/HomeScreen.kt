@@ -23,10 +23,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.callcatcher.core.capture.LiveRecording
 import com.callcatcher.ui.components.BottomDock
-import com.callcatcher.ui.components.DockAction
 import com.callcatcher.ui.components.EmptyLibrary
 import com.callcatcher.ui.components.LIVE_SLOTS
 import com.callcatcher.ui.components.LiveDeck
@@ -41,6 +41,7 @@ import com.callcatcher.ui.model.SourceFilter
 import com.callcatcher.ui.theme.CC
 import com.callcatcher.ui.util.formatSize
 import com.callcatcher.ui.util.formatTotalDuration
+import com.callcatcher.ui.util.shareRecording
 
 /**
  * The whole app in one window: top bar, optional setup card, a deck that appears while listening
@@ -56,6 +57,7 @@ fun HomeScreen(viewModel: LibraryViewModel) {
     val stats by viewModel.stats.collectAsState()
     val live by viewModel.live.collectAsState()
 
+    val context = LocalContext.current
     var statusOpen by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(status.loaded, status.ready) {
@@ -114,9 +116,11 @@ fun HomeScreen(viewModel: LibraryViewModel) {
                         recording = rec,
                         playback = playback,
                         onSeek = viewModel::seekTo,
-                        onSkip = viewModel::skipBy,
+                        onTogglePlay = viewModel::togglePlayback,
                         onCycleSpeed = viewModel::cycleSpeed,
+                        onShare = { shareRecording(context, rec.path, rec.title) },
                         onDelete = { viewModel.delete(rec) },
+                        onClose = viewModel::closePlayer,
                         modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                     )
                 }
@@ -149,19 +153,8 @@ fun HomeScreen(viewModel: LibraryViewModel) {
         }
 
         BottomDock(
-            action = when {
-                live != null -> DockAction.StopRecording
-                selected != null -> DockAction.Playback(playback.isPlaying)
-                else -> DockAction.StartTest
-            },
-            onPrimary = {
-                when {
-                    live != null -> viewModel.stopRecording()
-                    selected != null -> viewModel.togglePlayback()
-                    else -> viewModel.startTestRecording()
-                }
-            },
-            onClose = if (live == null && selected != null) viewModel::closePlayer else null,
+            recording = live != null,
+            onClick = { if (live != null) viewModel.stopRecording() else viewModel.startRecording() },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }

@@ -92,19 +92,19 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun closePlayer() = playback.stop()
     fun seekTo(positionMillis: Long) = playback.seekTo(positionMillis)
-    fun skipBy(deltaMillis: Long) = playback.seekTo(playback.state.value.positionMillis + deltaMillis)
     fun cycleSpeed() {
         val speeds = listOf(1f, 1.25f, 1.5f, 2f)
         val next = speeds[(speeds.indexOf(playback.state.value.speed) + 1).mod(speeds.size)]
         playback.setSpeed(next)
     }
 
-    /** 5-second microphone recording: verifies encoding, storage and playback without a call. */
-    fun startTestRecording() {
+    /** Microphone recording (a voice memo) until [stopRecording]. Closes the player first. */
+    fun startRecording() {
         val app = getApplication<Application>()
         if (engine.isRecording) return
+        playback.stop()
         app.startForegroundService(
-            RecorderService.startIntent(app, CallMetadata(source = CallSource.TEST, contactName = "Test recording"), autoStopMillis = 5_000)
+            RecorderService.startIntent(app, CallMetadata(source = CallSource.TEST, contactName = "Recording"))
         )
     }
 

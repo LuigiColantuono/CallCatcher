@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,15 +62,20 @@ private val DeckShape = RoundedCornerShape(28.dp)
 private val PanelShape = RoundedCornerShape(20.dp)
 private val Tabular = TextStyle(fontFeatureSettings = "tnum")
 
-/** Player for the selected recording: readout, seekable waveform, tools. */
+/**
+ * Player for the selected recording: readout with a close button, seekable waveform (the only
+ * navigation: tap or drag), and play / speed / share / delete.
+ */
 @Composable
 fun PlaybackDeck(
     recording: RecordingUi,
     playback: PlaybackState,
     onSeek: (Long) -> Unit,
-    onSkip: (Long) -> Unit,
+    onTogglePlay: () -> Unit,
     onCycleSpeed: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val duration = if (playback.durationMillis > 0) playback.durationMillis else recording.durationMillis
@@ -80,7 +87,16 @@ fun PlaybackDeck(
                     text = listOfNotNull(recording.source.label(), recording.direction.label()).joinToString(" · "),
                 )
                 Spacer(Modifier.weight(1f))
-                PanelChip(text = speedLabel(playback.speed))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(CC.DisplayInk.copy(alpha = 0.08f))
+                        .clickable(onClick = onClose),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close player", tint = CC.DisplayInk, modifier = Modifier.size(16.dp))
+                }
             }
             Spacer(Modifier.height(10.dp))
             Text(
@@ -117,14 +133,26 @@ fun PlaybackDeck(
 
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            ToolButton(onClick = { onSkip(-10_000) }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Replay10, contentDescription = "Back 10 seconds", tint = CC.TextPrimary)
-            }
-            ToolButton(onClick = { onSkip(10_000) }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Forward10, contentDescription = "Forward 10 seconds", tint = CC.TextPrimary)
+            ToolButton(
+                onClick = onTogglePlay,
+                modifier = Modifier.weight(2f),
+                background = CC.Accent.copy(alpha = 0.16f),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (playback.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = CC.Accent,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (playback.isPlaying) "Pause" else "Play", style = MaterialTheme.typography.labelLarge, color = CC.TextPrimary)
+                }
             }
             ToolButton(onClick = onCycleSpeed, modifier = Modifier.weight(1f)) {
                 Text(speedLabel(playback.speed), style = MaterialTheme.typography.labelLarge.merge(Tabular), color = CC.TextPrimary)
+            }
+            ToolButton(onClick = onShare, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.Share, contentDescription = "Share recording", tint = CC.TextPrimary)
             }
             DeleteButton(onDelete = onDelete, modifier = Modifier.weight(1f))
         }

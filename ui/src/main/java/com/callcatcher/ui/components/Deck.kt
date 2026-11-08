@@ -169,7 +169,7 @@ fun LiveDeck(live: LiveRecording, levels: List<Float>, modifier: Modifier = Modi
             delay(250)
         }
     }
-    val who = live.metadata.contactName ?: live.metadata.address
+    val who = live.metadata.contactName ?: live.metadata.address?.takeUnless { it.contains('@') }
 
     DeckCard(modifier) {
         DisplayPanel {

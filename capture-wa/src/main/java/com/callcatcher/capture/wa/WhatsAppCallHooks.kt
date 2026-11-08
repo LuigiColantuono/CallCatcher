@@ -55,23 +55,27 @@ internal object WhatsAppCallHooks {
 
         val started = XposedBridge.hookAllMethods(callback, "soundPortCreated", object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
-                val address = peerAddress(param.thisObject)
-                signal(context, CallCatcherIds.METHOD_START, CallMetadata(source = CallSource.WHATSAPP, address = address).toBundle())
+                val jid = peerJid(param.thisObject)
+                // Name/number lookup reads WhatsApp's databases: on the IPC thread, not the call thread.
+                signal(context, CallCatcherIds.METHOD_START) {
+                    val peer = jid?.let { WaContactLookup.resolve(context, it) }
+                    CallMetadata(source = CallSource.WHATSAPP, address = peer?.address, contactName = peer?.name).toBundle()
+                }
             }
         })
         val ended = XposedBridge.hookAllMethods(callback, "fieldstatsReady", object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
-                signal(context, CallCatcherIds.METHOD_STOP, null)
+                signal(context, CallCatcherIds.METHOD_STOP) { null }
             }
         })
         XposedBridge.log("CallCatcher: WhatsApp hooks installed (start=${started.size}, end=${ended.size})")
     }
 
-    private fun signal(context: Context, method: String, extras: Bundle?) {
+    private fun signal(context: Context, method: String, extras: () -> Bundle?) {
         ipc.execute {
             try {
                 val result = context.contentResolver.call(
-                    Uri.parse("content://${CallCatcherIds.TRIGGER_AUTHORITY}"), method, null, extras,
+                    Uri.parse("content://${CallCatcherIds.TRIGGER_AUTHORITY}"), method, null, extras(),
                 )
                 XposedBridge.log("CallCatcher: $method -> ${result?.getString(CallCatcherIds.RESULT_KEY)}")
             } catch (t: Throwable) {
@@ -84,18 +88,15 @@ internal object WhatsAppCallHooks {
     }
 
     /**
-     * Remote party from the callback's call info: getCallInfo().getPeerJid(), else the first key
-     * of its participants map (as WAEnhancer does). Phone-number JIDs become "+<digits>" so the app
-     * can match a contact; other identifiers (e.g. @lid) are passed through as-is.
+     * Raw JID of the remote party from the callback's call info: getCallInfo().getPeerJid(), else
+     * the first key of its participants map (as WAEnhancer does). Turned into a number and a name
+     * by [WaContactLookup].
      */
-    private fun peerAddress(callback: Any?): String? = runCatching {
+    private fun peerJid(callback: Any?): String? = runCatching {
         val info = XposedHelpers.callMethod(callback, "getCallInfo") ?: return null
         val jid = runCatching { XposedHelpers.callMethod(info, "getPeerJid") }.getOrNull()
             ?: (XposedHelpers.getObjectField(info, "participants") as? Map<*, *>)?.keys?.firstOrNull { it != null }
             ?: return null
-        val raw = runCatching { XposedHelpers.callMethod(jid, "getRawString") as? String }.getOrNull() ?: jid.toString()
-        val user = raw.substringBefore('@')
-        val server = raw.substringAfter('@', "")
-        if (server == "s.whatsapp.net" && user.isNotEmpty() && user.all(Char::isDigit)) "+$user" else raw
+        runCatching { XposedHelpers.callMethod(jid, "getRawString") as? String }.getOrNull() ?: jid.toString()
     }.getOrNull()
 }

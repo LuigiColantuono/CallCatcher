@@ -31,7 +31,10 @@ fun RecordingEntity.toUi(): RecordingUi = RecordingUi(
     path = path,
     source = CallSource.fromName(source),
     direction = CallDirection.fromName(direction),
-    title = contactName?.takeIf { it.isNotBlank() } ?: address?.takeIf { it.isNotBlank() } ?: "Unknown",
+    title = contactName?.takeIf { it.isNotBlank() }
+        // A WhatsApp LID ("…@lid") is an opaque id, not something to show.
+        ?: address?.takeIf { it.isNotBlank() && !it.contains('@') }
+        ?: if (address?.contains('@') == true) "WhatsApp contact" else "Unknown",
     address = address,
     startedAtMillis = startedAtMillis,
     durationMillis = durationMillis,

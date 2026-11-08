@@ -11,7 +11,8 @@ So, I created a single app that:
 - Has no notification system (it’s unnecessary)
 
 ## Preview
-Note: Note: The display of "Whatsapp Contact" is intentional and serves only as a preview; the CC field displays the name correctly.
+Note: The display of "Whatsapp Contact" is intentional and serves only as a preview; the CC field displays the name correctly.
+<br>
 <img width="auto" height="400" alt="image" src="https://github.com/user-attachments/assets/2e552d0a-ec80-49c9-9cc1-5fece4496366" />
 
 
